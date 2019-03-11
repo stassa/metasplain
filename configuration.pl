@@ -1,5 +1,6 @@
 :-module(configuration, [explanation_connectives/1
 			,explanation_operators/2
+			,interactive_session/1
 			,named_metarule/2
 			,recursion_explanation/1
 			]).
@@ -41,6 +42,21 @@ explanation_connectives([connective(or)]).
 explanation_operators(identity,[prefix('')]).
 explanation_operators(inverse,[prefix(anti)]).
 explanation_operators(chain,[infix(of)]).
+
+
+%!	interactive_session(?Bool) is semidet.
+%
+%	Whether to start an interactive user session or not.
+%
+%	If Bool is true metasplain will pause and prompt the user for an
+%	interpretation of automatically derived explanations. If it is
+%	false, nothing will happen.
+%
+%	Note well: the value of Bool is not validated in any way. If
+%	Bool is anything other than true or false, explanation will fail
+%	silently.
+%
+interactive_session(false).
 
 
 %!	named_metarule(?Name,?Metarule) is semidet.

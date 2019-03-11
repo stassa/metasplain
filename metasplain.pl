@@ -3,7 +3,7 @@
 		     ]).
 
 :-use_module(configuration).
-%:-use_module(src(auxiliaries)).
+:-use_module(interactive).
 
 /** <module> Give meaningful names to invented predicates.
 */
@@ -334,6 +334,15 @@ metarule_literals([L|Ls],Acc,Bind):-
 %	predicate symbol other than Symbol, are added to Rest, for
 %	further processing.
 %
+%	If the configuration option interactive_session/1 is set to
+%	"true", this will call user_explanation/4 to begin an
+%	interactive user session in order to elicit a human
+%	interpretation of the automatically formed Explanation. This
+%	interpretation will then replace the automatic Explanation.
+%	If interactive_session/1 is set to "false", no interaction with
+%	the user will be initiated and the automatically derived
+%	Explanation will be used instead.
+%
 %	Program is a list of clauses and Invented is a list of invented
 %	symbols. Explanations is a key-value pair, S-E, where S the
 %	input Symbol and E is the program explanation of the predicate.
@@ -342,12 +351,29 @@ metarule_literals([L|Ls],Acc,Bind):-
 %	so-far, and the same list augmented with the explanation of the
 %	current predicate.
 %
-predicate_explanation(S,Ps,_Is,Ks,Ks,S-E,Ps):-
+predicate_explanation(S,Ps,Is,Ks,Ks_,S-E,Rs):-
+	interactive_session(false)
+	,!
+	,predicate_explanation_(S,Ps,Is,Ks,Ks_,S-E,Rs).
+predicate_explanation(S,Ps,Is,Ks,Ks2,S-UE,Rs):-
+	interactive_session(true)
+	,predicate_explanation_(S,Ps,Is,Ks,Ks1,S-E,Rs)
+	,user_explanation(S-E,Ks1,S-UE,Ks2).
+
+
+%!	predicate_explanation_(+Sym,+Program,+Invented,+Known,-New,-Explanation,-Rest)
+%!	is det.
+%
+%	Business end of predicate_explanation/7.
+%
+%	Split off to allow predicate_explanation/7 to start an
+%	interactive user session if required.
+%
+predicate_explanation_(S,Ps,_Is,Ks,Ks,S-E,Ps):-
 	memberchk(S-E,Ks)
 	,!.
-predicate_explanation(S,Ps,Is,Ks,Ks_,PE,Rs):-
+predicate_explanation_(S,Ps,Is,Ks,Ks_,PE,Rs):-
 	predicate_explanation(S,Ps,Is,Ks,Ks_,[],PE,Rs).
-
 
 %!	predicate_explanation(+Sym,+Prog,+Inv,+Known,-New,+Acc,-Explanations,-Rest)
 %!	is det.

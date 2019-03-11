@@ -5,5 +5,6 @@
 
 :-edit('load.pl').
 :-edit('metasplain.pl').
+:-edit('interactive.pl').
 :-edit('configuration.pl').
 
