@@ -22,7 +22,7 @@ In the following example, the invented predicate p_1/2 is renamed to
 "father_of_mother/2", by use of the expression "of" to connect the predicate
 symbols of its body literals, father/2 and mother/2:
 
-```
+```prolog
 % Invented predicate
 p_1(A,B) :- father(A,C), mother(C,B).
 
@@ -235,7 +235,7 @@ infix/1, suffix/1.
 Explanation operators are defined in the configuration option
 explanation_operators/2. Following are a few examples:
 
-```
+```prolog
 explanation_operators(identity,[prefix('')]).
 explanation_operators(inverse,[prefix(anti)]).
 explanation_operators(chain,[infix(of)]).
@@ -248,7 +248,7 @@ literals with the word "of", etc.
 For example, in the following query, the invented symbol p_1/2 is renamed to
 "q_of_r/2" by connecting the symbols of its body literals, q and r by "of":
 
-```
+```prolog
 ?- _I = 1, _Ps = [(p(A,B):-p_1(A,B)), (p_1(A,B):-q(A,C),r(C,B))], invention_explanation(_I,_Ps,Es).
 Es = [(p(A, B):-q_of_r(A, B)),  (q_of_r(A, B):-q(A, C), r(C, B))].
 ```
@@ -260,7 +260,7 @@ Metarule names for metasplain are defined in the configuration option
 named_metarule/1, alongside the corresponding metarule in Metagol's notation.
 For example:
 
-```
+```prolog
 named_metarule(identity,metarule([P,Q],([P,A,B]:-[[Q,A,B]]))).
 named_metarule(inverse,metarule([P,Q],([P,A,B]:-[[Q,B,A]]))).
 named_metarule(chain,metarule([P,Q,R],([P,A,B]:-[[Q,A,C],[R,C,B]]))).
@@ -280,7 +280,7 @@ The explanation connective is always the same for all invented predicates in the
 program. It is a ground unit clause of the predicate connective/1, defined in
 the configuration option explanation_connectives/1. For example:
 
-```
+```prolog
 explanation_connectives([connective(or)]).
 ```
 
@@ -296,7 +296,7 @@ Tips and tricks
 Care is taken in metasplain to ensure that calls to invented predicates in the
 body of other invented predicates are named correctly:
 
-```
+```prolog
 ?- _Ps=[(grandfather(A,B):-grandfather_1(A,B)),(grandfather_1(A,B):-grandfather_2(A,B)),(grandfather_1(A,B):-grandfather_3(A,B)),(grandfather_2(A,B):-father(A,C),father(C,B)),(grandfather_3(A,B):-father(A,C),mother(C,B))].
 true.
 
@@ -330,13 +330,13 @@ Body literals recursively calling an invented head literal are assigned a
 special symbol to signify recursion. This is defined in the configuration option
 recursion_explanation/1. For example:
 
-```
+```prolog
 recursion_explanation(this).
 ```
 
 This would result in the following:
 
-```
+```prolog
 ?- _I = 1, _Ps = [(p(A,B):-p_1(A,B)), (p_1(A,B):-q(A,C), p_1(C,B))], invention_explanation(_I,_Ps,Es).
 Es = [(p(A, B):-q_of_this(A, B)),  (q_of_this(A, B):-q(A, C), q_of_this(C, B))].
 ```
@@ -346,7 +346,7 @@ Es = [(p(A, B):-q_of_this(A, B)),  (q_of_this(A, B):-q(A, C), q_of_this(C, B))].
 Assigning the empty string as an infix operator for the identity metarule can
 result in a redundant predicate. For example:
 
-```
+```prolog
 % explanation_operators(identity,[prefix('')]).
 
 ?- _I = 2, _Ps = [(p(A,B):-p_1(A,B)), (p_1(A,B):-p_2(A,B)), (p_2(A,B):-r(B,A))], invention_explanation(_I,_Ps,Es).
@@ -363,7 +363,7 @@ will remove the duplicate clause.
 If an overly low number is given as the maximum number of invented predicates,
 some of the invented predicates in the program will not be renamed:
 
-```
+```prolog
 ?- _I = 1, _Ps = [(p(A,B):-p_1(A,B)), (p_1(A,B):-q(A,C),p_2(C,B)), (p_2(A,B):-r(B,A))], invention_explanation(_I,_Ps,Es).
 Es = [(p(A, B):-q_of_p_2(A, B)),  (q_of_p_2(A, B):-q(A, C), p_2(C, B)),  (p_2(A, B):-r(B, A))].
 ```
@@ -388,7 +388,7 @@ will succeed in processing a program with mutual recursions between invented
 predicates but will not be able to give meaningful names to all its invented
 predicates. For example:
 
-```
+```prolog
 _I = 2, _Ps = [(p(A,B):-p_1(A,B)), (p_1(A,B):-q(A,C),p_2(C,B)), (p_2(A,B):-p_1(B,A))], invention_explanation(_I,_Ps,Es).
 Es = [(p(A, B):-q_of_anti_p_1(A, B)),  (q_of_anti_p_1(A, B):-q(A, C), anti_p_1(C, B)),  (anti_p_1(A, B):-q_of_anti_p_1(B, A))].
 ```
