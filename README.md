@@ -1,32 +1,32 @@
 Metasplain - assign meaningful names to invented predicates.
-============================================================
+==============================================================
 
 Motivation
 ----------
 
-Predicates invented by metagol in the course of learning a new hypothesis have
-symbols formed by indexing the symbol of the learning target with a number- e.g.
-deep_learning_pope_1/2, platypus_engineer_24/3, etc.
-
-A preponderance of invented predicates, especially invented predicates calling
-each other, may result in a learned hypothesis that is hard to read. Replacing
-invented symbols with meaningful names can help alleviate this, to some extent.
+Predicates invented by [metagol](https://github.com/metagol/metagol) in the
+course of learning a new hypothesis have symbols formed by indexing the symbol
+of the learning target with a number- e.g. deep_learning_pope_1/2,
+platypus_engineer_24/3, etc. A preponderance of invented predicates, especially
+invented predicates calling each other, may result in a learned hypothesis that
+is hard to read. Replacing invented symbols with meaningful names can help
+alleviate this.
 
 One way to determine what names it is meaningful to assign to invented
-predicates is to elicit (more) domain knowledge from the user. This is the
-approach taken by metasplain, where this knowledge takes the form of natural
-language expressions that are then used to combine together the predicate
-symbols of invented predicates' body literals. 
+predicates is to elicit domain knowledge from the user. This is the approach
+taken by metasplain, where this knowledge takes the form of natural language
+expressions used to create an English sentence from the predicate symbols of
+invented predicates' body literals. 
 
 In the following example, the invented predicate p_1/2 is renamed to
-"father_of_mother/2", by use of the expression "of" to connect the symbols of
-its body literals, father/2 and mother/2:
+"father_of_mother/2", by use of the expression "of" to connect the predicate
+symbols of its body literals, father/2 and mother/2:
 
 ```
-% Original invented predicate
+% Invented predicate
 p_1(A,B) :- father(A,C), mother(C,B).
 
-% Renamed invented predicate
+% Explained invented predicate
 father_of_mother(A,B) :- father(A,C), mother(C,B).
 ```
 
@@ -41,29 +41,44 @@ that the invented predicate represents this concept.
 Usage requirements
 ------------------
 
-metasplain requires Swi-Prolog, v.7.0 or higher. It may also run on Yap and
-other Prologs, but that has not been tested.
+metasplain requires Swi-Prolog, v.7.0 or higher.
 
-Examples of usage
------------------
+Usage Instructions
+------------------
 
-1) Loading metasplain.
+### Loading metasplain.
 
 To begin using metasplain, consult the source file load.pl, in metasplain's top
 directory. This will start Swi-Prolog's documentation browser and navigate to
-this README file. 
+this README file. It will also open metasplain's source files in the Swi-Prolog
+IDE. 
 
-It will also open metasplain's source files in the Swi-Prolog IDE. If this is
-not desired, metasplain can be started in "headless" mode by consulting
+Alternatively, metasplain can be started in "headless" mode by consulting
 load_headless.pl instead. This will only consult the project's source files,
 without starting the documentation server, or the IDE.
 
-2) Running metasplain.
+### Running metasplain.
 
-The main predicate in metasplain is invention_explanation/3. The following is
-an example query:
+metasplain can be run in two modes: _automatic_ and _interactive_. In automatic
+mode, the system forms predicate explanations automatically. In interactive mode
+it pauses after forming an explanation to ask the user for an alternative
+explanation.
 
+The user switches between modes by setting the configuration option
+interactive_session/1 in the project's configuration file, configuration.pl.
+
+Both modes are initiated by a query to invention_explanation/3. Examples follow.
+
+#### Running in automatic mode
+
+To enable the automatic mode interactive_session/1 must be set to "false":
+
+```prolog
+interactive_session(false).
 ```
+The following is an example of a session in automatic mode:
+
+```prolog
 ?- _Ps = [(grandparent(A,B):-grandparent_1(A,C),grandparent_1(C,B)),(grandparent_1(A,B):-mother(A,B)),(grandparent_1(A,B):-father(A,B))].
 true.
 
@@ -82,25 +97,110 @@ mother_or_father(A,B):-father(A,B).
 true.
 ```
 
-invention_explanation/3 takes as input an integer, the maximum number of
-invented predicates in a MIL problem, and a definite datalog program as a list
-of clauses that may include invented literals. It outputs the input program
-where predicate symbols of invented predicates are replaced with meaningful
-names, derived from those predicates' body literals.
+The first argument to invention_explanation/3 is an integer, the maximum number
+of invented predicates in a MIL problem. The second argument is a program
+learned by Metagol, a list of definite datalog clauses that may include invented
+literals. The output is the same program with invented predicate symbols
+replaced with meaningful names.
 
 The predicate get_option/1 in the example query above is defined in Metagol. If
 metagol.pl is not loaded, simply pass a positive integer to
 invention_explanation/3:
 
-```
+```prolog
 ?- ... invention_explanation(10,_Ps,_Es) ... 
 ```
 
-In the example above, note that the order of the predicate symbols "father" and
-"mother" in the meaningful name assigned to grandparent_1/2 is the same as the
-order in which the clauses of grandparent_1/2 that call these predicates are
-found in the learned program. This ensures that the semantics of the learned
-program are not disturbed by the renaming operation.
+In the example above, note that the order of clauses is preserved during
+renaming. This ensures that the semantics of the learned program are not
+disturbed by the renaming operation.
+
+#### Running in interactive mode
+
+To enable the interactive mode, interactive_session/1 must be set to "true":
+
+```prolog
+interactive_session(true).
+```
+
+An interactive session starts with a query to invention_explanation/3, as
+before. However, this time the system pauses after forming a predicate
+explanation and asks the user for input:
+
+```prolog
+?- _Ps = [(great_grandparent(A,B):- great_grandparent_1(A,C), great_grandparent_2(C,B)), 
+	 (great_grandparent_1(A,B):- father(A,B)), (great_grandparent_1(A,B):- mother(A,B)), 
+	 (great_grandparent_2(A,B):- great_grandparent_3(A,B)), 
+	 (great_grandparent_2(A,B):- great_grandparent_4(A,B)), 
+	 (great_grandparent_3(A,B):- father(A,C), great_grandparent_1(C,B)), 
+	 (great_grandparent_4(A,B):- mother(A,C), great_grandparent_1(C,B))].
+true.
+
+?- _I = 4, invention_explanation(_I,$_Ps,_Es), nl, writeln('Learned program:'), print_programs(_, [$_Ps]), writeln('Program with explanations:'), print_programs(_,[_Es]).
+How should I explain father_or_mother?
+|: parent
+I will explain father_or_mother as parent
+
+How should I explain father_of_parent?
+|: grandfather
+I will explain father_of_parent as grandfather
+
+How should I explain mother_of_parent?
+|: grandmother
+I will explain mother_of_parent as grandmother
+
+How should I explain grandfather_or_grandmother?
+|: grand parent
+I will explain grandfather_or_grandmother as grand_parent
+
+
+Learned program:
+great_grandparent(A,B):-great_grandparent_1(A,C),great_grandparent_2(C,B).
+great_grandparent_1(A,B):-father(A,B).
+great_grandparent_1(A,B):-mother(A,B).
+great_grandparent_2(A,B):-great_grandparent_3(A,B).
+great_grandparent_2(A,B):-great_grandparent_4(A,B).
+great_grandparent_3(A,B):-father(A,C),great_grandparent_1(C,B).
+great_grandparent_4(A,B):-mother(A,C),great_grandparent_1(C,B).
+
+Program with explanations:
+great_grandparent(A,B):-parent(A,C),grand_parent(C,B).
+parent(A,B):-father(A,B).
+parent(A,B):-mother(A,B).
+grand_parent(A,B):-grandfather(A,B).
+grand_parent(A,B):-grandmother(A,B).
+grandfather(A,B):-father(A,C),parent(C,B).
+grandmother(A,B):-mother(A,C),parent(C,B).
+
+true.
+```
+
+Input is terminated by a newline. 
+
+Press return to accept an automatically formed explanation:
+
+```prolog
+How should I explain grandfather_or_grandmother?
+|: 
+I will explain grandfather_or_grandmother as grandfather_or_grandmother
+```
+
+It the input cannot be used to form a valid Prolog constant without surrounding
+it with quotes, metasplain prompts for an alternative:
+
+```prolog
+How should I explain father_or_mother?
+|: _X
+Sorry, that's not a valid name.
+
+How should I explain father_or_mother?
+|:
+```
+
+The interactive mode is most useful when automatic explanations may result in
+overly long names. In the example above, the predicate interpreted as
+"grand_parent" by the user would be automatically explained as
+"father_of_father_or_mother_or_mother_of_father_or_mother".
 
 Configuring explanation operators and connectives
 -------------------------------------------------
@@ -110,7 +210,7 @@ configuration.pl, to control the operators and connectives used to form
 meningful names for invented predicates. Further information can be found in the
 documentation of the configuration file itself.
 
-The metasplain configuration isplaced in the root directory of the project, on
+The metasplain configuration is placed in the root directory of the project, on
 the same level as metasplain.pl.
 
 metasplain uses the options set in the configuration file to create meaningful
@@ -124,7 +224,7 @@ names for predicates in two steps:
   connected together using a connective such as "or" (most likely) or "and",
   etc.
 
-1) Clause explanations.
+### Clause explanations.
 
 Meaningful names of clauses are formed by combining the symbols of body literals
 in clauses of invented predicates with a set of _explanation operators_.
@@ -153,7 +253,7 @@ For example, in the following query, the invented symbol p_1/2 is renamed to
 Es = [(p(A, B):-q_of_r(A, B)),  (q_of_r(A, B):-q(A, C), r(C, B))].
 ```
 
-2) Named metarules.
+### Named metarules.
 
 Clause explanations require metarules to be _named_ (unlike in Metagol).
 Metarule names for metasplain are defined in the configuration option
@@ -191,7 +291,7 @@ define any connectives such as "and", "however", "from_to" etc.
 Tips and tricks
 ---------------
 
-1) Invented predicates calling invented predicates.
+### Invented predicates calling invented predicates.
 
 Care is taken in metasplain to ensure that calls to invented predicates in the
 body of other invented predicates are named correctly:
@@ -221,40 +321,10 @@ true.
 
 However, note that this may result in long predicate names, where there is a
 long chain of calls between invented predicates, particularly in a large
-program with many clauses.
+program with many clauses. In such cases running in interactive mode is
+recommended.
 
-For instance:
-
-```
-?- _Ps = [(great_grandparent(A,B):- great_grandparent_1(A,C), great_grandparent_2(C,B)), (great_grandparent_1(A,B):- father(A,B)), (great_grandparent_1(A,B):- mother(A,B)), (great_grandparent_2(A,B):- great_grandparent_3(A,B)), (great_grandparent_2(A,B):- great_grandparent_4(A,B)), (great_grandparent_3(A,B):- father(A,C), great_grandparent_1(C,B)), (great_grandparent_4(A,B):- mother(A,C), great_grandparent_1(C,B))].
-true.
-
-?- _I = 4, invention_explanation(_I,$_Ps,_Es), nl, writeln('Learned program:'), print_programs(_, [$_Ps]), writeln('Program with explanations:'), print_programs(_,[_Es]).
-
-Learned program:
-great_grandparent(A,B):-great_grandparent_1(A,C),great_grandparent_2(C,B).
-great_grandparent_1(A,B):-father(A,B).
-great_grandparent_1(A,B):-mother(A,B).
-great_grandparent_2(A,B):-great_grandparent_3(A,B).
-great_grandparent_2(A,B):-great_grandparent_4(A,B).
-great_grandparent_3(A,B):-father(A,C),great_grandparent_1(C,B).
-great_grandparent_4(A,B):-mother(A,C),great_grandparent_1(C,B).
-
-Program with explanations:
-great_grandparent(A,B):-father_or_mother(A,C),father_of_father_or_mother_or_mother_of_father_or_mother(C,B).
-father_or_mother(A,B):-father(A,B).
-father_or_mother(A,B):-mother(A,B).
-father_of_father_or_mother_or_mother_of_father_or_mother(A,B):-father_of_father_or_mother(A,B).
-father_of_father_or_mother_or_mother_of_father_or_mother(A,B):-mother_of_father_or_mother(A,B).
-father_of_father_or_mother(A,B):-father(A,C),father_or_mother(C,B).
-mother_of_father_or_mother(A,B):-mother(A,C),father_or_mother(C,B).
-```
-
-Clearly, "father_of_father_or_mother_or_mother_of_father_or_mother" is only
-marginally easier to understand, if at all, than "great_grandparent_2".
-
-
-2) Recursive calls.
+### Recursive calls.
 
 Body literals recursively calling an invented head literal are assigned a
 special symbol to signify recursion. This is defined in the configuration option
@@ -271,7 +341,7 @@ This would result in the following:
 Es = [(p(A, B):-q_of_this(A, B)),  (q_of_this(A, B):-q(A, C), q_of_this(C, B))].
 ```
 
-3) Redundant identities.
+### Redundant identities.
 
 Assigning the empty string as an infix operator for the identity metarule can
 result in a redundant predicate. For example:
@@ -288,7 +358,7 @@ predicate p_1/2 is redundant- it is only re-defining p_2/2 with a different
 invented symbol. Sorting the program once p_1/2 is assigned the name anti_r/2
 will remove the duplicate clause.
 
-4) Incorrect maximum number of invented predicates.
+### Incorrect maximum number of invented predicates.
 
 If an overly low number is given as the maximum number of invented predicates,
 some of the invented predicates in the program will not be renamed:
@@ -311,7 +381,7 @@ exactly which invented predicate will remain unnamed.
 Further work
 ------------
 
-1) Mutual recursion
+### Mutual recursion
 
 metasplain can't currently deal with mutually recursive invented predicates. It
 will succeed in processing a program with mutual recursions between invented
@@ -323,29 +393,17 @@ _I = 2, _Ps = [(p(A,B):-p_1(A,B)), (p_1(A,B):-q(A,C),p_2(C,B)), (p_2(A,B):-p_1(B
 Es = [(p(A, B):-q_of_anti_p_1(A, B)),  (q_of_anti_p_1(A, B):-q(A, C), anti_p_1(C, B)),  (anti_p_1(A, B):-q_of_anti_p_1(B, A))].
 ```
 
-2) Abstraction
+### Abstraction
 
 metasplain does not currently support abstraction. Explanations may be
 formed incorrectly for interpreted BK predcates.
 
+### Automatic interpretations
 
-3) Shorter names
+Rather than eliciting a human interpretation to replace a long automatic
+explanation, it might be possible to elicit further domain knowledge from the
+user to produce such interpretations automatically.
 
-As a program grows, and the number of invented predicates grows, meaningful
-names may become large and unwieldy. See for instance the example in the section
-"Invented predicates calling invented predicates", where a invented predicate is
-assigned the name *father_of_father_or_father_of_mother*.
-
-It is possible to shorten such long names by allowing the user to provide a
-_substitute symbol_ for them. In the first example in the _Tips and Trokcs_
-section above, a user could provide a substitute symbol "parent", then
-metasplain could automatically replace all occurrences of
-*father_of_father_or_father_of_mother* with "parent":
-
-```
-grandfather(A,B):-parent(A,B).
-parent(A,B):-father_of_father(A,B).
-parent(A,B):-father_of_mother(A,B).
-father_of_father(A,B):-father(A,C),father(C,B).
-father_of_mother(A,B):-father(A,C),mother(C,B).
-```
+For example, the user might provide a mapping between "mother or father" and
+"parent", then metasplain could automaticallly explain predicates such as
+"mother_of_father" in one of the examples above with "parent".
