@@ -175,7 +175,20 @@ clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_,Es):-
 %	Acc is the accumulator of the current explanation's symbols, and
 %	String is the finished job.
 %
-clause_explanation(_S,[],[],_Ps,_Is,Ks,Ks,Es,Es).
+%	@tbd: The explanation string is reversed at the end of
+%	processing. This is because we allow multiple operators to apply
+%	to a string of more than two symbols. We process the lists of
+%	operators and their corresponding symbols using a recursive
+%	list-traversal skeleton that means the result is in reverse
+%	order at the end, so we must reverse it again. This in turn
+%	requires operands to be combined with operators _in reverse
+%	order_, i.e. we reverse the operands during the application of
+%	the operator.
+%
+clause_explanation(_S,[],[],_Ps,_Is,Ks,Ks,Es_,Es):-
+	reverse(Es_,Es)
+	,!.
+
 % A body literal has an invented symbol and might need explanation.
 clause_explanation(S,[Si|Ss],Os,Ps,Is,Ks,Ks_Bind,Acc,Bind):-
 	memberchk(Si,Is)
@@ -192,32 +205,35 @@ clause_explanation(S,[S1,S2|Ss],Os,Ps,Is,Ks,Ks_Bind,Acc,Bind):-
 	,start_of_definition(S2,Ps,Ds)
 	,predicate_explanation(S2,Ds,Is,Ks,Ks_,S2-E,Ps_)
 	,clause_explanation(S,[S1,E|Ss],Os,Ps_,Is,Ks_,Ks_Bind,Acc,Bind).
+
 % Explanation operators with blank expressions.
 clause_explanation(S,[Si|Ss],[O|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
 	O =.. [_|['']]
 	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[Si|Acc],Bind).
 clause_explanation(S,[S1,S2|Ss],[infix('')|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[S1,S2|Acc],Bind).
+	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[S2,S1|Acc],Bind).
+
 % Explanation operators dealing with recursion.
 clause_explanation(S,[S|Ss],[prefix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
 	configuration:recursion_explanation(R)
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[E,R|Acc],Bind).
+	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[R,E|Acc],Bind).
 clause_explanation(S,[S,S2|Ss],[infix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
 	configuration:recursion_explanation(R)
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[R,E,S2|Acc],Bind).
+	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[S2,E,R|Acc],Bind).
 clause_explanation(S,[S1,S|Ss],[infix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
 	configuration:recursion_explanation(R)
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[S1,E,R|Acc],Bind).
+	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[R,E,S1|Acc],Bind).
 clause_explanation(S,[S|Ss],[suffix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
 	configuration:recursion_explanation(R)
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[R,E|Acc],Bind).
+	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[E,R|Acc],Bind).
+
 % Nice, uncomplicated explanation operators.
 clause_explanation(S,[Si|Ss],[prefix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[E,Si|Acc],Bind).
-clause_explanation(S,[S1,S2|Ss],[infix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[S1,E,S2|Acc],Bind).
-clause_explanation(S,[Si|Ss],[suffix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
 	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[Si,E|Acc],Bind).
+clause_explanation(S,[S1,S2|Ss],[infix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
+	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[S2,E,S1|Acc],Bind).
+clause_explanation(S,[Si|Ss],[suffix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
+	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[E,Si|Acc],Bind).
 
 
 %!	start_of_definition(+Predicate,+Program,-Definition) is det.
@@ -245,12 +261,60 @@ start_of_definition_(S,[_C|Ps],Bind):-
 %
 %	Collect the predicate symbols in a list of Literals.
 %
+%	@tbd This has an unusual (for me anyway) reverse/2 call in the
+%	_interface_ clause. Normally, I reverse the result in the
+%	auxiliary, as soon as I've collected a list that needs
+%	reversing. However, in literals_symbols/3, i.e. this one's
+%	auxiliary, there is a double-dip recursion skeleton which
+%	means that, if the boundary condition reverses the result,
+%	the result will be reversed twice (once in the first and again
+%	in the second recursive call). The simplest thing to do is to
+%	collect the result, without disturbing its order, and reverse it
+%	afterwards, i.e. on exit from literals_symbols/3, in this
+%	predicate. Interesting, innit?
+%
 literals_symbols(Ls,Ss):-
-	findall(S
-	       ,(member(L,Ls)
-		,functor(L,S,_A)
-		)
-	       ,Ss).
+	literals_symbols(Ls,[],Ss_)
+	,reverse(Ss_,Ss).
+
+%!	literals_symbols(+Literals,+Acc,-Symbols) is det.
+%
+%	Business end of literals_symbols/2.
+%
+%	See notes in parent about the lack of reverse/2 call here in
+%	relation to the double-recursion in the second clause. The
+%	reason for the double recursion is that this predicate must be
+%	able to collect symbols of second-order literals, which are,
+%	themselves, first-order atoms ... or possibly second order ones,
+%	even.
+%
+literals_symbols([],Ss,Ss):-
+	!.
+literals_symbols([L|Ls],Acc,Bind):-
+	second_order(L)
+	,!
+	,L =.. [S|As]
+	,literals_symbols(As,[S|Acc],Acc_)
+	,literals_symbols(Ls,Acc_,Bind).
+literals_symbols([L|Ls],Acc,Bind):-
+% L may be a term in a second-order literal.
+	compound(L)
+	,!
+	,functor(L,S,_A)
+	,literals_symbols(Ls,[S|Acc],Bind).
+literals_symbols([_L|Ls],Acc,Bind):-
+	literals_symbols(Ls,Acc,Bind).
+
+
+%!	second_order(+Literal) is det.
+%
+%	True when Literal is a second-order atom.
+%
+second_order(L):-
+	compound(L)
+	,L =.. Ls
+	,member(Li,Ls)
+	,compound(Li).
 
 
 %!	clause_operators(+Clause,+Symbols,-Operators) is det.
@@ -266,6 +330,10 @@ clause_operators(C,Ss,Os):-
 %
 %	Find the name of a Metarule matched by a Clause.
 %
+%	@tbd This is a little on the redundant side. We could just add
+%	both calls to clause_operators/3 without growing it that much in
+%	size.
+%
 clause_metarule(C,Ss,M):-
 	named_metarule(M,metarule(Ss,Ls))
 	,metarule_clause(metarule(Ss,Ls),C).
@@ -273,7 +341,13 @@ clause_metarule(C,Ss,M):-
 
 %!	metarule_clause(+Metarule,+Clause) is det.
 %
-%	True when Clause is a clause of the given Metarule.
+%	True when Clause matches Metarule.
+%
+%	A Clause matches a Metarule when their literals match. To
+%	determine this, we instantiate the literals of the metarule and
+%	attempt to unify the result with Clause. The second-order terms
+%	in Metarule are already bound to the predicate symbols of
+%	literals in Clause, in clause_operators/3.
 %
 metarule_clause(M,(H:-Bs)):-
 	metarule_literals(M,Ls_)
@@ -296,26 +370,72 @@ metarule_clause(M,(H:-Bs)):-
 %	words, the lists of terms in Metarule are converted to
 %	predicates' atoms (compound terms in Prolog).
 %
-metarule_literals(metarule(_,Ls),Ls_):-
-	metarule_literals(Ls,[],Ls_).
+metarule_literals(metarule(Es,Ls),Ls_):-
+	metarule_literals(Ls,Es,[],Ls_).
 
-%!	metarule_literals(+Metarule,+Acc,-Literals) is det.
+%!	metarule_literals(+Metarule,+Existential,+Acc,-Literals) is det.
 %
 %	Business end of metarule_literals/2.
 %
-metarule_literals([],Acc,Ls):-
+metarule_literals([],_Es,Acc,Ls):-
 	!
 	,reverse(Acc,Ls).
-metarule_literals((H:-Bs),Acc,Bind):-
+metarule_literals((H:-Bs),Es,Acc,Bind):-
 % H is a list of terms, Bs is a list of lists of terms
 	!
 	,H_ =.. H
-	,metarule_literals(Bs,[H_|Acc],Bind).
-metarule_literals([L|Ls],Acc,Bind):-
-% Should also cover unit clauses.
+	,metarule_literals(Bs,Es,[H_|Acc],Bind).
+metarule_literals([L|Ls],Es,Acc,Bind):-
 	!
-	,L_ =.. L
-	,metarule_literals(Ls,[L_|Acc],Bind).
+	,instantiated_literal(L,Es,L_)
+	,metarule_literals(Ls,Es,[L_|Acc],Bind).
+
+
+%!	instantiated_literal(+Literal,+Existential,-Instantiated) is
+%!	det.
+%
+%	Instantiate a Literal of a metarule.
+%
+%	An "instantiated literal" is an atom constructed from a list of
+%	terms representing a literal in Metagol's notation.
+%
+%	Literal is such a list of terms for the metarule currently
+%	being processed (by metarule_clause/2 and metarule_literals/3).
+%	Existential is the list of existentially quantified terms in
+%	that metarule. Instantiated is the atom constructed from the
+%	list of terms.
+%
+%	This predicate ensures that second-order literals are correctly
+%	instantiated. A second-order literal is represented as a list
+%	[S,T1,...,Tn] where S is a second-order predicate and at least
+%	one of its terms Ti is itself a list representing an atom of
+%	a predicate passed as an argument to S.
+%
+%	However, it is always possible that S also takes an ordinary
+%	list as an argument, i.e one that does _not_ represent an atom
+%	of a predicate. Unfortunately, it's impossible to syntactically
+%	distinguish the two kinds of list. Instead, we scan the list
+%	Existential, of the existentially quantified terms in the
+%	metarule, for each member of Literal that is a list. If a member
+%	of Literal is a list and is _not_ in Existential then it's a
+%	list representing an atom of a predicate that is an argument to
+%	S. Otherwise, the list is just a first-order term in S.
+%
+instantiated_literal(L,Es,L_):-
+	instantiated_literal(L,Es,[],L_).
+
+instantiated_literal([],_Es,Acc,L):-
+	reverse(Acc,Ts)
+	,L =.. Ts
+	,!.
+instantiated_literal([T|Ts],Es,Acc,Bind):-
+	is_list(T)
+	,\+ member(T, Es)
+	,!
+	,T_ =.. T
+	,instantiated_literal(Ts,Es,[T_|Acc],Bind).
+instantiated_literal([T|Ts],Es,Acc,Bind):-
+	instantiated_literal(Ts,Es,[T|Acc],Bind).
 
 
 %!	predicate_explanation(+Sym,+Program,+Invented,+Known,-New,-Explanation,-Rest)
@@ -444,11 +564,25 @@ explained_literals(C,Es,(H:-B)):-
 %
 %	Business end of explained_literals/3.
 %
+%	The second clause of this predicate follows a similar pattern to
+%	the second clause in literals_symbols/3 when it comes to second-
+%	order literals: these are recursively explained, if they have
+%	invented symbols in Explanations.
+%
 explained_literals([],_Es,Acc,Ls):-
 	reverse(Acc,Ls)
 	,!.
 explained_literals([L|Ls],Es,Acc,Bind):-
-	L =.. [S|As]
+	second_order(L)
+	,!
+	,L =.. [S|As]
+	,explained_literals([S],Es,[],[S_])
+	,explained_literals(As,Es,[],As_)
+	,L_ =.. [S_|As_]
+	,explained_literals(Ls,Es,[L_|Acc],Bind).
+explained_literals([L|Ls],Es,Acc,Bind):-
+	nonvar(L)
+	,L =.. [S|As]
 	,memberchk(S-E,Es)
 	,!
 	,L_ =.. [E|As]

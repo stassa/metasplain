@@ -42,7 +42,13 @@ explanation_connectives([connective(or)]).
 explanation_operators(identity,[prefix('')]).
 explanation_operators(inverse,[prefix(anti)]).
 explanation_operators(chain,[infix(of)]).
-
+explanation_operators(unchain,[infix(of),infix('')]).
+explanation_operators(precon,[infix(if)]).
+explanation_operators(postcon,[infix(if)]).
+explanation_operators(curry_3,[prefix('')]).
+explanation_operators(curry_4,[prefix('')]).
+explanation_operators(curry_5,[prefix('')]).
+explanation_operators(tailrec,[infix(of)]).
 
 %!	interactive_session(?Bool) is semidet.
 %
@@ -66,6 +72,13 @@ interactive_session(false).
 named_metarule(identity,metarule([P,Q],([P,A,B]:-[[Q,A,B]]))).
 named_metarule(inverse,metarule([P,Q],([P,A,B]:-[[Q,B,A]]))).
 named_metarule(chain,metarule([P,Q,R],([P,A,B]:-[[Q,A,C],[R,C,B]]))).
+named_metarule(unchain,metarule([P,Q,not,R],([P,A,B]:-[[Q,A,B],[not,[R,B,_C]]]))).
+named_metarule(precon,metarule([P,Q,R],([P,A,B]:-[[Q,A],[R,B]]))).
+named_metarule(postcon,metarule([P,Q,R],([P,A,B]:-[[Q,A,B],[R,B]]))).
+named_metarule(curry_3,metarule([P,Q,R],([P,A,B]:-[[Q,A,B,R]]))).
+named_metarule(curry_4,metarule([P,Q,R,S],([P,A,B]:-[[Q,A,B,R,S]]))).
+named_metarule(curry_5,metarule([P,Q,R,S,T],([P,A,B]:-[[Q,A,B,R,S,T]]))).
+named_metarule(tailrec,metarule([P,Q,P],([P,A,B]:-[[Q,A,C],[P,C,B]]))).
 
 
 %!	recursion_explanation(?String) is semidet.
