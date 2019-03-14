@@ -1,4 +1,9 @@
-:-module(metasplain, [invention_explanation/3
+:-module(metasplain, [invention_explanation/2
+		     ,literals_symbols/2
+		     ,clause_metarule/3
+		     ,select_definition/4
+		     ,clause_predicate_symbol/2
+		     ,clause_literals/2
 		     ,print_programs/2
 		     ]).
 
@@ -8,7 +13,7 @@
 /** <module> Give meaningful names to invented predicates.
 */
 
-%!	invention_explanation(+Invented,+Program,-Explained) is det.
+%!	invention_explanation(+Program,-Explained) is det.
 %
 %	Assign meaningful names to invented predicates in a Program.
 %
@@ -22,7 +27,7 @@
 %	be encountered in a single clause before the definition of that
 %	predicate, and then only in clauses following the definition.
 %
-%	invention_explanation/3 exploits this to ensure that calls to
+%	invention_explanation/2 exploits this to ensure that calls to
 %	invented predicates are correctly renamed according to that
 %	predicate's explanation, by recursively traversing the program
 %	from the top-down, so that the definition of an invented
@@ -35,46 +40,75 @@
 %
 %	@tbd Currently can't deal with mutual recursion.
 %
-invention_explanation(I,Ps,Es):-
-	invented_symbols(I,Ps,Is)
-	,clause_explanations(Ps,Is,Cs_E)
+invention_explanation(Ps,Es):-
+	top_goal(Ps,G/_)
+	,clause_explanations(Ps,G,Cs_E)
 	,program_explanation(Ps,Cs_E,Es).
 
 
-%!	invented_symbols(+Max,+Program,-Invented) is det.
+%!	invented_symbol(+Symbol,+Goal) is det.
 %
-%	Construct all possible Invented symbols.
+%	True when Symbol is an invented symbol.
 %
-%	Max is the maximum number of invented symbols in a hypothesis;
-%	it can be obtained from the metagol option max_inv_preds/1.
+%	Goal should be the top-goal of a hypothesis including one of
+%	more clauses of Symbol.
 %
-%	Program is a learned hypothesis, that may include up to Max
-%	invented predicates, from which the symbol of the learning
-%	target is extracted, and used to identify invented symbols. In
-%	Metagol, invented symbols are of the form Symbol_I where Symbol
-%	is the symbol of the learning target and I is an index, from 1
-%	to Max.
+%	What is considered an invented symbol depends on the value of
+%	the configuration option invention_assumption/1. In short,
+%	either every Prolog atom followed by a numerical index of
+%	integers separated by underscores is considered to be an
+%	invented symbol (the "weak assumption") or only the symbol of
+%	Goal followed by a numeric index, is (the "strong assumption").
 %
-%	Invented is a list of all invented symbols that may be included
-%	in the given Program.
-%
-invented_symbols(I,Ps,Ss):-
-	top_goal(Ps,F/_A)
-	,findall(S
-	       ,(between(1,I,K)
-		,atomic_list_concat([F,K],'_',S)
-		)
-	       ,Ss).
+invented_symbol(S,G):-
+	configuration:invention_assumption(A)
+	,atom_chars(S,Ss)
+	,atom_chars(G,Gs)
+	,invented_symbol(A,Ss,Gs).
 
 
-%!	clause_explanations(+Program,+Invented,-Explanations) is det.
+%!	invented_symbol(+Strength,+Symbol,+Goal) is det.
+%
+%	Business end of invened_symbol/2.
+%
+%	Clauses are selected depending on Strength, taken from the
+%	configuration option invention_assumption/1.
+%
+invented_symbol(weak,Ss,Gs):-
+	Ss \= Gs
+	,append(Gs,Rs,Ss)
+	,once(phrase(index,Rs))
+	,!.
+invented_symbol(strong,Ss,_Gs):-
+	once(phrase(indexed_symbol,Ss)).
+
+
+%!	indexed_symbol is nondet.
+%
+%	A predicate symbol with a numeric index.
+%
+indexed_symbol --> symbol, index.
+
+symbol --> [A], { atom(A) }.
+symbol --> [A], { atom(A) }, symbol.
+
+index --> underscore,number.
+index --> underscore,number,index.
+
+underscore --> ['_'].
+number --> [N], {atom_chars(N,[C]), char_type(C,digit)}.
+
+
+%!	clause_explanations(+Program,+Goal,-Explanations) is det.
 %
 %	Form Explanations for Invented predicates in a Program.
 %
-clause_explanations(Ps,Is,Es):-
-	clause_explanations(Ps,Is,[],Es).
+%	Goal is the top-goal in the Program.
+%
+clause_explanations(Ps,G,Es):-
+	clause_explanations(Ps,G,[],Es).
 
-%!	clause_explanations(+Program,+Invented,+Acc,-Explanations) is
+%!	clause_explanations(+Program,+Goal,+Acc,-Explanations) is
 %!	det.
 %
 %	Business end of clause_explanations/3.
@@ -84,28 +118,28 @@ clause_explanations(Ps,Is,Es):-
 %	invented predicate and each value, E, is an explanation of one
 %	of the clauses of that predicate in the Program.
 %
-clause_explanations([],_Is,Es,Es):-
+clause_explanations([],_G,Es,Es):-
 	!.
-clause_explanations([C|Ps],Is,Acc,Bind):-
+clause_explanations([C|Ps],G,Acc,Bind):-
 	top_goal([C],S/_A)
-	,predicate_explanation(S,[C|Ps],Is,Acc,Acc_,_E,_Ps)
+	,predicate_explanation(S,[C|Ps],G,Acc,Acc_,_E,_Ps)
 	,!
-	,clause_explanations(Ps,Is,Acc_,Bind).
-clause_explanations([_|Ps],Is,Acc,Bind):-
-	clause_explanations(Ps,Is,Acc,Bind).
+	,clause_explanations(Ps,G,Acc_,Bind).
+clause_explanations([_|Ps],G,Acc,Bind):-
+	clause_explanations(Ps,G,Acc,Bind).
 
 
-%!	explained_clause(+Clause,+Invented,+Known,-Explained) is det.
+%!	explained_clause(+Clause,+Goal,+Known,-Explained) is det.
 %
 %	Explain a Clause of an invented predicate.
 %
-%	Invented is a list of invented predicate symbols. If the symbol
-%	of the head literal of Clause is in Invented, Explained is a
-%	key-value pair S-E, where S that symbol and S an explanation of
-%	the invented predicate formed by combining the symbols of the
-%	body literals in Clause with the explanation operators assigned
-%	in the configuration to the first metarule matched by the
-%	clause.
+%	Goal is the top goal of the Clause's parent program, used to
+%	identify invented predicate symbols. If the symbol of the head
+%	literal of Clause is invented, Explained is a key-value pair
+%	S-E, where S that symbol and S an explanation of the invented
+%	predicate formed by combining the symbols of the body literals
+%	in Clause with the explanation operators assigned in the
+%	configuration to the first metarule matched by the clause.
 %
 %	Known is a list of _predicate_ explanations formed so far. It is
 %	a list of key-value pairs, in particular, it's the
@@ -117,24 +151,24 @@ clause_explanations([_|Ps],Is,Acc,Bind):-
 %	its symbol, that symbol is replaced with E in the clause
 %	explanation of Clause output in Explained.
 %
-explained_clause(C,Ps,Is,Ks,Ks_,S-E):-
+explained_clause(C,Ps,G,Ks,Ks_,S-E):-
 	clause_literals(C,Ls)
 	,literals_symbols(Ls, [S|Ss])
-	,memberchk(S,Is)
+	,invented_symbol(S,G)
 	,clause_operators(C,[S|Ss],Os)
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_,Es)
+	,clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_,Es)
 	,atomic_list_concat(Es,'_',E).
 
 
-%!	clause_explanation(+Sym,+Syms,+Ops,+Prog,+Inv,+Known,-New,-String)
+%!	clause_explanation(+Sym,+Syms,+Ops,+Prog,+Goal,+Known,-New,-String)
 %!	is det.
 %
 %	Form an explanation String for an invented predicate clause.
 %
-clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_,Es):-
-	once(clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_,[],Es)).
+clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_,Es):-
+	once(clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_,[],Es)).
 
-%!	clause_explanation(+Sym,+Syms,+Ops,+Prog,+Inv,+Known,-New,+Acc,-String)
+%!	clause_explanation(+Sym,+Syms,+Ops,+Prog,+Goal,+Known,-New,+Acc,-String)
 %!	is det.
 %
 %	Business end of clause_explanation/8.
@@ -157,10 +191,9 @@ clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_,Es):-
 %	Ops is the list of explanation operators assigned to
 %	the metarule matching this clause. Prog is the current program,
 %	that should at this point start with the clause we want to form
-%	an explanation for. Inv is the list of invented symbols (the
-%	"invented signature") used to determine which litearls in the
-%	clause's body to explain (we don't want to explain non-invented
-%	literals!).
+%	an explanation for. Goal is the top goal of the clause's parent
+%	program used to determine which litearls in the clause's body to
+%	explain (we don't want to explain non-invented literals!).
 %
 %	Known is the accumulated list of _predicate_ explanations
 %	so-far, a list of Symbol-Explanation pairs. It is used to allow
@@ -185,55 +218,55 @@ clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_,Es):-
 %	order_, i.e. we reverse the operands during the application of
 %	the operator.
 %
-clause_explanation(_S,[],[],_Ps,_Is,Ks,Ks,Es_,Es):-
+clause_explanation(_S,[],[],_Ps,_G,Ks,Ks,Es_,Es):-
 	reverse(Es_,Es)
 	,!.
 
 % A body literal has an invented symbol and might need explanation.
-clause_explanation(S,[Si|Ss],Os,Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	memberchk(Si,Is)
+clause_explanation(S,[Si|Ss],Os,Ps,G,Ks,Ks_Bind,Acc,Bind):-
+	invented_symbol(Si,G)
 	,start_of_definition(Si,Ps,Ds)
-	,predicate_explanation(Si,Ds,Is,Ks,Ks_,Si-E,Ps_)
-	,clause_explanation(S,[E|Ss],Os,Ps_,Is,Ks_,Ks_Bind,Acc,Bind).
-clause_explanation(S,[S1,S2|Ss],Os,Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	memberchk(S1,Is)
+	,predicate_explanation(Si,Ds,G,Ks,Ks_,Si-E,Ps_)
+	,clause_explanation(S,[E|Ss],Os,Ps_,G,Ks_,Ks_Bind,Acc,Bind).
+clause_explanation(S,[S1,S2|Ss],Os,Ps,G,Ks,Ks_Bind,Acc,Bind):-
+	invented_symbol(S1,G)
 	,start_of_definition(S1,Ps,Ds)
-	,predicate_explanation(S1,Ds,Is,Ks,Ks_,S1-E,Ps_)
-	,clause_explanation(S,[E,S2|Ss],Os,Ps_,Is,Ks_,Ks_Bind,Acc,Bind).
-clause_explanation(S,[S1,S2|Ss],Os,Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	memberchk(S2,Is)
+	,predicate_explanation(S1,Ds,G,Ks,Ks_,S1-E,Ps_)
+	,clause_explanation(S,[E,S2|Ss],Os,Ps_,G,Ks_,Ks_Bind,Acc,Bind).
+clause_explanation(S,[S1,S2|Ss],Os,Ps,G,Ks,Ks_Bind,Acc,Bind):-
+	invented_symbol(S2,G)
 	,start_of_definition(S2,Ps,Ds)
-	,predicate_explanation(S2,Ds,Is,Ks,Ks_,S2-E,Ps_)
-	,clause_explanation(S,[S1,E|Ss],Os,Ps_,Is,Ks_,Ks_Bind,Acc,Bind).
+	,predicate_explanation(S2,Ds,G,Ks,Ks_,S2-E,Ps_)
+	,clause_explanation(S,[S1,E|Ss],Os,Ps_,G,Ks_,Ks_Bind,Acc,Bind).
 
 % Explanation operators with blank expressions.
-clause_explanation(S,[Si|Ss],[O|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
+clause_explanation(S,[Si|Ss],[O|Os],Ps,G,Ks,Ks_Bind,Acc,Bind):-
 	O =.. [_|['']]
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[Si|Acc],Bind).
-clause_explanation(S,[S1,S2|Ss],[infix('')|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[S2,S1|Acc],Bind).
+	,clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_Bind,[Si|Acc],Bind).
+clause_explanation(S,[S1,S2|Ss],[infix('')|Os],Ps,G,Ks,Ks_Bind,Acc,Bind):-
+	clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_Bind,[S2,S1|Acc],Bind).
 
 % Explanation operators dealing with recursion.
-clause_explanation(S,[S|Ss],[prefix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
+clause_explanation(S,[S|Ss],[prefix(E)|Os],Ps,G,Ks,Ks_Bind,Acc,Bind):-
 	configuration:recursion_explanation(R)
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[R,E|Acc],Bind).
-clause_explanation(S,[S,S2|Ss],[infix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
+	,clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_Bind,[R,E|Acc],Bind).
+clause_explanation(S,[S,S2|Ss],[infix(E)|Os],Ps,G,Ks,Ks_Bind,Acc,Bind):-
 	configuration:recursion_explanation(R)
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[S2,E,R|Acc],Bind).
-clause_explanation(S,[S1,S|Ss],[infix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
+	,clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_Bind,[S2,E,R|Acc],Bind).
+clause_explanation(S,[S1,S|Ss],[infix(E)|Os],Ps,G,Ks,Ks_Bind,Acc,Bind):-
 	configuration:recursion_explanation(R)
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[R,E,S1|Acc],Bind).
-clause_explanation(S,[S|Ss],[suffix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
+	,clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_Bind,[R,E,S1|Acc],Bind).
+clause_explanation(S,[S|Ss],[suffix(E)|Os],Ps,G,Ks,Ks_Bind,Acc,Bind):-
 	configuration:recursion_explanation(R)
-	,clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[E,R|Acc],Bind).
+	,clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_Bind,[E,R|Acc],Bind).
 
 % Nice, uncomplicated explanation operators.
-clause_explanation(S,[Si|Ss],[prefix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[Si,E|Acc],Bind).
-clause_explanation(S,[S1,S2|Ss],[infix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[S2,E,S1|Acc],Bind).
-clause_explanation(S,[Si|Ss],[suffix(E)|Os],Ps,Is,Ks,Ks_Bind,Acc,Bind):-
-	clause_explanation(S,Ss,Os,Ps,Is,Ks,Ks_Bind,[E,Si|Acc],Bind).
+clause_explanation(S,[Si|Ss],[prefix(E)|Os],Ps,G,Ks,Ks_Bind,Acc,Bind):-
+	clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_Bind,[Si,E|Acc],Bind).
+clause_explanation(S,[S1,S2|Ss],[infix(E)|Os],Ps,G,Ks,Ks_Bind,Acc,Bind):-
+	clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_Bind,[S2,E,S1|Acc],Bind).
+clause_explanation(S,[Si|Ss],[suffix(E)|Os],Ps,G,Ks,Ks_Bind,Acc,Bind):-
+	clause_explanation(S,Ss,Os,Ps,G,Ks,Ks_Bind,[E,Si|Acc],Bind).
 
 
 %!	start_of_definition(+Predicate,+Program,-Definition) is det.
@@ -438,7 +471,7 @@ instantiated_literal([T|Ts],Es,Acc,Bind):-
 	instantiated_literal(Ts,Es,[T|Acc],Bind).
 
 
-%!	predicate_explanation(+Sym,+Program,+Invented,+Known,-New,-Explanation,-Rest)
+%!	predicate_explanation(+Sym,+Program,+Goal,+Known,-New,-Explanation,-Rest)
 %!	is det.
 %
 %	Form an explanation for a predicate with an invented Symbol.
@@ -463,25 +496,26 @@ instantiated_literal([T|Ts],Es,Acc,Bind):-
 %	the user will be initiated and the automatically derived
 %	Explanation will be used instead.
 %
-%	Program is a list of clauses and Invented is a list of invented
-%	symbols. Explanations is a key-value pair, S-E, where S the
-%	input Symbol and E is the program explanation of the predicate.
+%	Program is a list of clauses and Goal is the top-goal of
+%	Program, used to identify invented symbols. Explanations is a
+%	key-value pair, S-E, where S the input Symbol and E is the
+%	program explanation of the predicate.
 %
 %	Known and New are the list of predicate explanations obtained
 %	so-far, and the same list augmented with the explanation of the
 %	current predicate.
 %
-predicate_explanation(S,Ps,Is,Ks,Ks_,S-E,Rs):-
+predicate_explanation(S,Ps,G,Ks,Ks_,S-E,Rs):-
 	interactive_session(false)
 	,!
-	,predicate_explanation_(S,Ps,Is,Ks,Ks_,S-E,Rs).
-predicate_explanation(S,Ps,Is,Ks,Ks2,S-UE,Rs):-
+	,predicate_explanation_(S,Ps,G,Ks,Ks_,S-E,Rs).
+predicate_explanation(S,Ps,G,Ks,Ks2,S-UE,Rs):-
 	interactive_session(true)
-	,predicate_explanation_(S,Ps,Is,Ks,Ks1,S-E,Rs)
+	,predicate_explanation_(S,Ps,G,Ks,Ks1,S-E,Rs)
 	,user_explanation(S-E,Ks1,S-UE,Ks2).
 
 
-%!	predicate_explanation_(+Sym,+Program,+Invented,+Known,-New,-Explanation,-Rest)
+%!	predicate_explanation_(+Sym,+Program,+Goal,+Known,-New,-Explanation,-Rest)
 %!	is det.
 %
 %	Business end of predicate_explanation/7.
@@ -489,13 +523,13 @@ predicate_explanation(S,Ps,Is,Ks,Ks2,S-UE,Rs):-
 %	Split off to allow predicate_explanation/7 to start an
 %	interactive user session if required.
 %
-predicate_explanation_(S,Ps,_Is,Ks,Ks,S-E,Ps):-
+predicate_explanation_(S,Ps,_G,Ks,Ks,S-E,Ps):-
 	memberchk(S-E,Ks)
 	,!.
-predicate_explanation_(S,Ps,Is,Ks,Ks_,PE,Rs):-
-	predicate_explanation(S,Ps,Is,Ks,Ks_,[],PE,Rs).
+predicate_explanation_(S,Ps,G,Ks,Ks_,PE,Rs):-
+	predicate_explanation(S,Ps,G,Ks,Ks_,[],PE,Rs).
 
-%!	predicate_explanation(+Sym,+Prog,+Inv,+Known,-New,+Acc,-Explanations,-Rest)
+%!	predicate_explanation(+Sym,+Prog,+Goal,+Known,-New,+Acc,-Explanations,-Rest)
 %!	is det.
 %
 %	Business end of predicate_explanation/6.
@@ -504,11 +538,11 @@ predicate_explanation_(S,Ps,Is,Ks,Ks_,PE,Rs):-
 %	form the predicate explanation for the predicate with the given
 %	Sym(bol).
 %
-predicate_explanation(S,[C|Ps],Is,Ks,Ks_Bind,Acc_Es,Bind_Es,Bind_Rs):-
-	explained_clause(C,Ps,Is,Ks,Ks_,S-E)
+predicate_explanation(S,[C|Ps],G,Ks,Ks_Bind,Acc_Es,Bind_Es,Bind_Rs):-
+	explained_clause(C,Ps,G,Ks,Ks_,S-E)
 	,!
-	,predicate_explanation(S,Ps,Is,Ks_,Ks_Bind,[E|Acc_Es],Bind_Es,Bind_Rs).
-predicate_explanation(S,Ps,_Is,Ks,[S-E|Ks],Acc_Es,S-E,Ps):-
+	,predicate_explanation(S,Ps,G,Ks_,Ks_Bind,[E|Acc_Es],Bind_Es,Bind_Rs).
+predicate_explanation(S,Ps,_G,Ks,[S-E|Ks],Acc_Es,S-E,Ps):-
 	configuration:explanation_connectives([Ns])
 	,reverse(Acc_Es,Acc_Es_)
 	,once(phrase(predicate_explanation(Ns,Es),Acc_Es_))
@@ -605,6 +639,70 @@ explained_literals([L|Ls],Es,Acc,Bind):-
 top_goal(Hs,F/A):-
 	Hs = [H:-_|_]
 	,functor(H,F,A).
+
+
+%!	select_definition(+Predicate,+Program,-Definition,-Rest)
+%
+%	Select the clauses of a Predicate Definition in a Program.
+%
+%	Rest are the clauses remaining Program after all clauses of
+%	Predicate are removed from it.
+%
+select_definition(C,Ps,Ds,Rs):-
+	clause_predicate_symbol(C,S/A)
+	,select_definition(S/A,Ps,[],Rs,[],Ds).
+
+select_definition(_S/_A,[],Acc_Ps,Ps,Acc_Ds,Ds):-
+	reverse(Acc_Ps,Ps)
+	,reverse(Acc_Ds,Ds)
+	,!.
+select_definition(S/A,[(H:-B)|Ps],Acc_Ps,Bind_Ps,Acc_Ds,Bind_Ds):-
+	functor(H,S,A)
+	,!
+	,select_definition(S/A,Ps,Acc_Ps,Bind_Ps,[(H:-B)|Acc_Ds],Bind_Ds).
+select_definition(S/A,[C|Ps],Acc_Ps,Bind_Ps,Acc_Ds,Bind_Ds):-
+	select_definition(S/A,Ps,[C|Acc_Ps],Bind_Ps,Acc_Ds,Bind_Ds).
+
+
+%!	definition(+Predicate,+Program,-Definition) is det.
+%
+%	Collect the clauses of a Predicate Definition in a Program.
+%
+%	Predicate is either a predicate indicator, Symbol/Arity, or a
+%	clause of the target predicate. Definition is the list of all
+%	clauses of Predicate in the list of clauses Program.
+%
+definition(S/A,Ps,Ds):-
+	!
+	,definition(S/A,Ps,[],Ds).
+definition(C,Ps,Ds):-
+	clause_predicate_symbol(C,S/A)
+	,definition(S/A,Ps,[],Ds).
+
+%!	definition(+Predicate,+Program,+Acc,-Definition) is det.
+%
+%	Business end of definition/3.
+%
+definition(_S/_A,[],Acc,Ds):-
+	reverse(Acc,Ds).
+definition(S/A,[(H:-B)|Ps],Acc,Bind):-
+	functor(H,S,A)
+	,!
+	,definition(S/A,Ps,[(H:-B)|Acc],Bind).
+definition(S/A,[_|Ps],Acc,Bind):-
+	definition(S/A,Ps,Acc,Bind).
+
+
+%!	clause_predicate_symbol(+Clause,-Symbol) is det.
+%
+%	Symbol is the predicate symbol of the head literal in Clause.
+%
+clause_predicate_symbol((H:-_B),F/A):-
+	!
+	,functor(H,F,A).
+clause_predicate_symbol(L,F/A):-
+	compound(L)
+	,functor(L,F,A).
 
 
 %!	clause_literals(+Clause, -Literals) is det.
