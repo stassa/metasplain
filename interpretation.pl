@@ -16,8 +16,13 @@
 %	strings.
 %
 interpretation(Ps,Is):-
-	predicate_interpretations(Ps,Is_Cs)
+	var(Is)
+	,!
+	,predicate_interpretations(Ps,Is_Cs)
 	,program_interpretation(Is_Cs,Is).
+interpretation(Ps,Is):-
+	var(Ps)
+	,interpretation_program(Is,Ps).
 
 
 %!	predicate_interpretations(+Program,-Interpretations) is det.
@@ -111,7 +116,8 @@ cleaned_interpretation([],Acc,Cs):-
 	reverse(Acc,Cs_)
 	,flatten(Cs_,Cs).
 cleaned_interpretation([S|Is],Acc,Bind):-
-	atom(S)
+	configuration:interpretation_cleanup(remove_underscores)
+	,atom(S)
 	,!
 	,atomic_list_concat(Ss,'_',S)
 	,cleaned_interpretation(Is,[Ss|Acc],Bind).
@@ -171,8 +177,12 @@ program_interpretation([_S/_A-Is|Ps],Acc,Bind):-
 %
 %	Merge a list of Interpretations, removing repeating tokens.
 %
+merged_interpretations(Is,Is):-
+	configuration:merge_interpretations(false)
+	,!.
 merged_interpretations([I|Is],[I|Ms]):-
-	merged_interpretations(I,Is,[],Ms).
+	configuration:merge_interpretations(true)
+	,merged_interpretations(I,Is,[],Ms).
 
 %!	merged_interpretations(+First,+Interpretations,+Acc,-Merged) is
 %!	det.
@@ -202,3 +212,50 @@ string_difference_([T|Ss1],[T|Ss2],Bind):-
 	!
 	,string_difference_(Ss1,Ss2,Bind).
 string_difference_(_Ss1,Ss,Ss).
+
+
+%!	interpretation_program(+Interpretation,-Program) is nondet.
+%
+%	Reconstruct a program from an Interpretation.
+%
+interpretation_program(Is,Ps):-
+	interpretation_clauses(Is, Cs)
+	,interpretation_program(Cs,[],Ps).
+
+
+%!	interpretation_clauses(+Interpretation,-Clauses) is det.
+%
+%	Split an Interpretation to a list of interpreted Clauses.
+%
+interpretation_clauses(Is,Cs):-
+	interpretation_clauses(Is,[],Cs).
+
+%!	interpretation_clauses(+Interpretation,+Acc,-Clauses) is det.
+%
+%	Business end of interpretation_clauses/2
+%
+interpretation_clauses([],Acc,Cs):-
+	reverse(Acc,Cs_)
+	,flatten(Cs_, Cs)
+	,!.
+interpretation_clauses([I|Is], Acc,Bind):-
+	explanation_connectives([connective(C)])
+	% Ensure no spaces are left at clause limits.
+	,atomic_list_concat([' ',C,' '],'',C_)
+	% Split predicate names around connectives.
+	,atomic_list_concat(Ci,C_,I)
+	,interpretation_clauses(Is,[Ci|Acc],Bind).
+
+
+%!	interpretation_program(+Interpretation,+Acc,-Program) is nondet.
+%
+%	Business end of interpretation_program/2.
+%
+interpretation_program([],Acc,Ps):-
+	reverse(Acc,Ps)
+	,!.
+interpretation_program([I|Is],Acc,Bind):-
+	atomic_list_concat(Ts,' ',I)
+	,interpretation_string(M,HO,_FO,Ts)
+	,clause_metarule(C,HO,M)
+	,interpretation_program(Is,[C|Acc],Bind).

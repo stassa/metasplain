@@ -4,6 +4,8 @@
 			,interpretation_string/2
 			,interpretation_string/4
 			,invention_assumption/1
+			,interpretation_cleanup/1
+			,merge_interpretations/1
 			,named_metarule/2
 			,recursion_explanation/1
 			,variable_interpretation/1
@@ -66,7 +68,23 @@ explanation_operators(tailrec,[infix(of)]).
 %	Bool is anything other than true or false, explanation will fail
 %	silently.
 %
-interactive_session(true).
+interactive_session(false).
+
+
+%!	interpretation_cleanup(?Operation) is semidet.
+%
+%	Operations to perform to cleanup automatic interpretations.
+%
+%	Currently the only known Operation is remove_underscores that
+%	replaces underscores in predicate symbols with spaces, to make
+%	them look more natural. Be advised though that this breaks
+%	program reconstruction.
+%
+%	Additionally, Operation can be the atom _none_ that disables all
+%	cleanup operations.
+%
+interpretation_cleanup(none).
+%interpretation_cleanup(remove_underscores).
 
 
 %!	interpretation_string(?Metarule,?String) is semidet.
@@ -79,10 +97,10 @@ interactive_session(true).
 %	interpretation of a program resulting in a string resembling an
 %	expression in a natural language.
 %
-interpretation_string(identity,['A',_P,is,a,_Q]).
-interpretation_string(chain,['The',_P,is,the,_Q,of,the,_R]).
-interpretation_string(postcon,['A',_P,is,a,_Q,if,the,game,is,_R]).
-interpretation_string(unchain,['A',_P,is,a,_Q,that,is,not,followed,by,a,_R]).
+interpretation_string(identity,[the,_P,is,the,_Q]).
+interpretation_string(chain,[the,_P,is,the,_Q,of,the,_R]).
+interpretation_string(postcon,[a,_P,is,a,_Q,if,the,game,is,_R]).
+interpretation_string(unchain,[a,_P,is,a,_Q,that,is,not,followed,by,a,_R]).
 
 
 %!	interpretation_string(?Metarule,?Second_Order,?First_Order,?String)
@@ -169,6 +187,13 @@ interpretation_string(unchain
 %	because its start doesn't match of win_2.
 %
 invention_assumption(weak).
+
+
+%!	merge_interpretations(?Bool) is semidet.
+%
+%	Whether clause explanations should be merged.
+%
+merge_interpretations(true).
 
 
 %!	named_metarule(?Name,?Metarule) is semidet.

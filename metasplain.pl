@@ -383,10 +383,18 @@ clause_metarule(C,Ss,M):-
 %	literals in Clause, in clause_operators/3.
 %
 metarule_clause(M,(H:-Bs)):-
-	metarule_literals(M,Ls_)
+	compound(H)
+	,!
+	,metarule_literals(M,Ls_)
 	,copy_term((H:-Bs),(H_:-Bs_))
 	,numbervars((H_:-Bs_))
 	,once(list_tree(Ls_,(H_,Bs_))).
+metarule_clause(M,(H:-Bs)):-
+% Used by interpretation:interpretation_program/3.
+	var(H)
+	,var(Bs)
+	,metarule_literals(M,Ls_)
+	,once(list_tree(Ls_,(H,Bs))).
 
 
 %!	metarule_literals(+Metarule,-Literals) is det.
